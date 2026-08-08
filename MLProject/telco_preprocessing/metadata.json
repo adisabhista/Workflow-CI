@@ -1,0 +1,49 @@
+{
+  "source_file": "../telco_raw/telco_churn_raw.csv",
+  "n_rows_train": 5616,
+  "n_rows_test": 1405,
+  "n_features": 28,
+  "feature_names": [
+    "gender",
+    "SeniorCitizen",
+    "Partner",
+    "Dependents",
+    "tenure",
+    "PhoneService",
+    "MultipleLines",
+    "OnlineSecurity",
+    "OnlineBackup",
+    "DeviceProtection",
+    "TechSupport",
+    "StreamingTV",
+    "StreamingMovies",
+    "PaperlessBilling",
+    "MonthlyCharges",
+    "TotalCharges",
+    "avg_charge_per_month",
+    "InternetService_Fiber_optic",
+    "InternetService_No",
+    "Contract_One_year",
+    "Contract_Two_year",
+    "PaymentMethod_Credit_card_automatic",
+    "PaymentMethod_Electronic_check",
+    "PaymentMethod_Mailed_check",
+    "tenure_group_1_2_thn",
+    "tenure_group_2_4_thn",
+    "tenure_group_4_5_thn",
+    "tenure_group_5_thn_plus"
+  ],
+  "target": "Churn",
+  "scaled_columns": [
+    "tenure",
+    "MonthlyCharges",
+    "TotalCharges",
+    "avg_charge_per_month"
+  ],
+  "test_size": 0.2,
+  "random_state": 42,
+  "class_balance_train": {
+    "0": 0.7356,
+    "1": 0.2644
+  }
+}

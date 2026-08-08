@@ -1,0 +1,29 @@
+name: telco-churn-msml
+
+conda_env: conda.yaml
+
+entry_points:
+  main:
+    parameters:
+      data_dir:
+        type: str
+        default: "telco_preprocessing"
+      n_estimators:
+        type: int
+        default: 200
+      max_depth:
+        type: int
+        default: 12
+      min_samples_leaf:
+        type: int
+        default: 1
+      class_weight:
+        type: str
+        default: "balanced"
+    command: >-
+      python modelling.py
+      --data-dir {data_dir}
+      --n-estimators {n_estimators}
+      --max-depth {max_depth}
+      --min-samples-leaf {min_samples_leaf}
+      --class-weight {class_weight}

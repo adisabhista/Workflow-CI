@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+mlruns/
+MLProject/ci_artifacts/
+MLProject/run_id.txt
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

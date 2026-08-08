@@ -1,0 +1,45 @@
+Tautan Docker Hub - Kriteria 3 (Advance)
+========================================
+
+Repository Docker Hub
+---------------------
+https://hub.docker.com/r/<USERNAME_DOCKERHUB>/telco-churn-model
+
+Nama image
+----------
+<USERNAME_DOCKERHUB>/telco-churn-model:latest
+<USERNAME_DOCKERHUB>/telco-churn-model:<nomor_build>
+
+Cara image dibuat
+-----------------
+Image dibangun otomatis pada GitHub Actions menggunakan fungsi bawaan MLflow:
+
+    mlflow models build-docker \
+        --model-uri "runs:/$RUN_ID/model" \
+        --name telco-churn-model \
+        --enable-mlserver
+
+lalu di-tag dan di-push:
+
+    docker tag telco-churn-model <USERNAME_DOCKERHUB>/telco-churn-model:latest
+    docker push <USERNAME_DOCKERHUB>/telco-churn-model:latest
+
+Cara menjalankan image (untuk Kriteria 4 - serving)
+---------------------------------------------------
+    docker pull <USERNAME_DOCKERHUB>/telco-churn-model:latest
+    docker run -p 5005:8080 <USERNAME_DOCKERHUB>/telco-churn-model:latest
+
+Endpoint prediksi: http://127.0.0.1:5005/invocations
+
+Contoh request:
+
+    curl -X POST http://127.0.0.1:5005/invocations \
+      -H "Content-Type: application/json" \
+      -d '{"dataframe_split": {"columns": [...], "data": [[...]]}}'
+
+Secrets GitHub yang dibutuhkan
+------------------------------
+    DOCKERHUB_USERNAME  -> username Docker Hub
+    DOCKERHUB_TOKEN     -> access token Docker Hub (Account Settings > Security)
+
+CATATAN: ganti <USERNAME_DOCKERHUB> dengan username Docker Hub Anda.

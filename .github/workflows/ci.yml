@@ -1,0 +1,197 @@
+name: CI - MLflow Project Retraining
+
+# Trigger: setiap push/PR ke main, manual, dan terjadwal setiap Senin 01:00 UTC
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      n_estimators:
+        description: "Jumlah pohon RandomForest"
+        required: false
+        default: "200"
+      max_depth:
+        description: "Kedalaman maksimum pohon"
+        required: false
+        default: "12"
+  schedule:
+    - cron: "0 1 * * 1"
+
+permissions:
+  contents: write
+
+env:
+  PROJECT_DIR: MLProject
+  IMAGE_NAME: telco-churn-model
+  EXPERIMENT_NAME: "Telco Churn - CI Retraining"
+
+jobs:
+  build-and-push:
+    name: Retrain model & publish artefak
+    runs-on: ubuntu-latest
+
+    steps:
+      # ------------------------------------------------------------------ #
+      - name: Run actions/checkout@v3
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.12.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.7"
+
+      - name: Check Env
+        run: |
+          echo "Python  : $(python --version)"
+          echo "Pip     : $(pip --version)"
+          echo "Runner  : ${{ runner.os }}"
+          echo "Trigger : ${{ github.event_name }}"
+          echo "Commit  : ${{ github.sha }}"
+          ls -R ${{ env.PROJECT_DIR }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ${{ env.PROJECT_DIR }}/requirements.txt
+          mlflow --version
+
+      - name: Set MLflow Tracking URI
+        run: |
+          # URI absolut agar tetap valid ketika MLflow Project berpindah cwd
+          echo "MLFLOW_TRACKING_URI=file://${GITHUB_WORKSPACE}/mlruns" >> $GITHUB_ENV
+          echo "Tracking URI: file://${GITHUB_WORKSPACE}/mlruns"
+
+      # ------------------------------------------------------------------ #
+      - name: Run mlflow project
+        run: |
+          mlflow run ${{ env.PROJECT_DIR }} \
+            --env-manager=local \
+            --experiment-name "${{ env.EXPERIMENT_NAME }}" \
+            -P n_estimators=${{ github.event.inputs.n_estimators || 200 }} \
+            -P max_depth=${{ github.event.inputs.max_depth || 12 }} \
+            -P min_samples_leaf=1 \
+            -P class_weight=balanced
+
+      - name: Get latest MLflow run_id
+        id: get_run
+        run: |
+          python - <<'PY' > run_info.env
+          import os
+          import mlflow
+          from mlflow.tracking import MlflowClient
+
+          mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+          client = MlflowClient()
+          exp = client.get_experiment_by_name(os.environ["EXPERIMENT_NAME"])
+          run = client.search_runs(
+              [exp.experiment_id],
+              order_by=["attributes.start_time DESC"],
+              max_results=1,
+          )[0]
+          print(f"RUN_ID={run.info.run_id}")
+          print(f"EXPERIMENT_ID={exp.experiment_id}")
+          print(f"MODEL_DIR=mlruns/{exp.experiment_id}/{run.info.run_id}/artifacts/model")
+          PY
+
+          cat run_info.env >> $GITHUB_ENV
+          cat run_info.env
+          source run_info.env
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          ls -la "$MODEL_DIR"
+
+      - name: Show model metrics
+        run: |
+          python - <<'PY'
+          import os
+          import mlflow
+          from mlflow.tracking import MlflowClient
+
+          mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+          run = MlflowClient().get_run(os.environ["RUN_ID"])
+          print("=" * 60)
+          print("METRIK HASIL RETRAINING")
+          print("=" * 60)
+          for k, v in sorted(run.data.metrics.items()):
+              print(f"  {k:<28}: {v:.4f}")
+          print("=" * 60)
+          PY
+
+      # ------------------------------------------------------------------ #
+      # SKILLED: menyimpan artefak ke repositori
+      # ------------------------------------------------------------------ #
+      - name: Install Python dependencies
+        run: pip install --upgrade requests
+
+      - name: Upload artefak ke GitHub Actions Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlflow-artifacts-${{ github.run_number }}
+          path: |
+            mlruns/
+            MLProject/ci_artifacts/
+            MLProject/run_id.txt
+          retention-days: 90
+
+      - name: Upload to GitHub (commit model artefak ke repository)
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p artifacts/model
+          cp -r "$MODEL_DIR"/. artifacts/model/
+          cp -r MLProject/ci_artifacts/. artifacts/ 2>/dev/null || true
+          echo "$RUN_ID" > artifacts/run_id.txt
+          echo "Build   : ${{ github.run_number }}"  >> artifacts/build_info.txt
+          echo "Commit  : ${{ github.sha }}"         >> artifacts/build_info.txt
+          echo "Run ID  : $RUN_ID"                   >> artifacts/build_info.txt
+          echo "Waktu   : $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> artifacts/build_info.txt
+
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/
+          if git diff --staged --quiet; then
+            echo "Tidak ada perubahan artefak."
+          else
+            git commit -m "ci: simpan artefak model run ${RUN_ID} [skip ci]"
+            git push
+          fi
+
+      # ------------------------------------------------------------------ #
+      # ADVANCE: build & push Docker Image ke Docker Hub
+      # ------------------------------------------------------------------ #
+      - name: Build Docker Model
+        if: github.event_name != 'pull_request'
+        run: |
+          mlflow models build-docker \
+            --model-uri "runs:/$RUN_ID/model" \
+            --name "${{ env.IMAGE_NAME }}" \
+            --enable-mlserver
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tag Docker Image
+        if: github.event_name != 'pull_request'
+        run: |
+          docker tag ${{ env.IMAGE_NAME }} ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          docker tag ${{ env.IMAGE_NAME }} ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+          docker images | grep ${{ env.IMAGE_NAME }}
+
+      - name: Push Docker Image
+        if: github.event_name != 'pull_request'
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.run_number }}
+          echo "Image tersedia di: https://hub.docker.com/r/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}"
+
+      - name: Complete job
+        if: always()
+        run: |
+          echo "### Ringkasan CI" >> $GITHUB_STEP_SUMMARY
+          echo "- MLflow run_id : \`$RUN_ID\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker image  : \`${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Build number  : ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY

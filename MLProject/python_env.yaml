@@ -1,0 +1,13 @@
+python: "3.12.7"
+build_dependencies:
+  - pip
+  - setuptools
+  - wheel
+dependencies:
+  - mlflow==2.19.0
+  - scikit-learn==1.6.0
+  - pandas==2.2.3
+  - numpy==2.2.1
+  - matplotlib==3.10.0
+  - joblib==1.4.2
+  - cloudpickle==3.1.0
