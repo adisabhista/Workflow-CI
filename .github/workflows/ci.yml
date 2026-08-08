@@ -137,23 +137,40 @@ jobs:
       - name: Upload to GitHub (commit model artefak ke repository)
         if: github.event_name != 'pull_request'
         run: |
+          set -e
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # actions/checkout memakai detached HEAD pada commit pemicu. Saat job
+          # di-"Re-run", commit tersebut bisa sudah tertinggal dari origin/main
+          # (karena run sebelumnya ikut menulis artefak), sehingga push ditolak
+          # dengan "fetch first". Karena itu artefak selalu dibangun ulang di
+          # atas ujung origin/main yang terbaru.
+          git fetch origin main
+          rm -rf artifacts
+          git checkout -f -B main origin/main
+
+          # mlruns/ dan MLProject/ci_artifacts/ ada di .gitignore sehingga tetap
+          # utuh setelah perpindahan branch di atas.
+          rm -rf artifacts
           mkdir -p artifacts/model
           cp -r "$MODEL_DIR"/. artifacts/model/
           cp -r MLProject/ci_artifacts/. artifacts/ 2>/dev/null || true
           echo "$RUN_ID" > artifacts/run_id.txt
-          echo "Build   : ${{ github.run_number }}"  >> artifacts/build_info.txt
-          echo "Commit  : ${{ github.sha }}"         >> artifacts/build_info.txt
-          echo "Run ID  : $RUN_ID"                   >> artifacts/build_info.txt
-          echo "Waktu   : $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> artifacts/build_info.txt
+          {
+            echo "Build   : ${{ github.run_number }}"
+            echo "Commit  : ${{ github.sha }}"
+            echo "Run ID  : $RUN_ID"
+            echo "Waktu   : $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          } > artifacts/build_info.txt
 
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add artifacts/
+          git add -A artifacts/
           if git diff --staged --quiet; then
             echo "Tidak ada perubahan artefak."
           else
             git commit -m "ci: simpan artefak model run ${RUN_ID} [skip ci]"
-            git push
+            git push origin HEAD:main
+            echo "Artefak model tersimpan di folder artifacts/ pada branch main."
           fi
 
       # ------------------------------------------------------------------ #
