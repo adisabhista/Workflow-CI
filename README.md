@@ -79,7 +79,13 @@ mlflow ui
 ```bash
 RUN_ID=$(cat MLProject/run_id.txt)
 mlflow models build-docker --model-uri "runs:/$RUN_ID/model" \
-    --name telco-churn-model --enable-mlserver
+    --name telco-churn-model --env-manager local
 
 docker run -p 5005:8080 telco-churn-model
 ```
+
+> **`--env-manager local` wajib.** Dengan default (`virtualenv`), MLflow mengalihkan
+> base image ke `ubuntu:20.04` yang meng-install `python3.9` lalu mengunduh
+> `get-pip.py` versi umum — dan skrip itu sekarang menolak Python < 3.10, sehingga
+> build gagal. Dengan `local`, base image tetap `python:3.12.7-slim` sesuai
+> `python_env.yaml` model.

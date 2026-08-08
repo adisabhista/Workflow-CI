@@ -179,10 +179,25 @@ jobs:
       - name: Build Docker Model
         if: github.event_name != 'pull_request'
         run: |
+          # --env-manager local WAJIB.
+          #
+          # Tanpa flag ini MLflow memakai default 'virtualenv', dan pada
+          # mlflow/pyfunc/backend.py base image otomatis dialihkan dari
+          # python:3.12.7-slim menjadi ubuntu:20.04. Template ubuntu tersebut
+          # menjalankan `apt install python3.9` lalu mengunduh get-pip.py versi
+          # umum, padahal get-pip.py sekarang menolak Python < 3.10 sehingga
+          # build gagal dengan:
+          #   "This script does not work on Python 3.9"
+          #
+          # Dengan 'local', base image tetap python:3.12.7-slim (diambil dari
+          # python_env.yaml milik model), tidak ada pyenv/python3.9, dan build
+          # jauh lebih cepat serta image lebih kecil.
           mlflow models build-docker \
             --model-uri "runs:/$RUN_ID/model" \
             --name "${{ env.IMAGE_NAME }}" \
-            --enable-mlserver
+            --env-manager local
+
+          docker images | grep "${{ env.IMAGE_NAME }}"
 
       - name: Log in to Docker Hub
         if: github.event_name != 'pull_request'

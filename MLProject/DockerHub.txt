@@ -17,7 +17,12 @@ Image dibangun otomatis pada GitHub Actions menggunakan fungsi bawaan MLflow:
     mlflow models build-docker \
         --model-uri "runs:/$RUN_ID/model" \
         --name telco-churn-model \
-        --enable-mlserver
+        --env-manager local
+
+Catatan: --env-manager local wajib. Dengan default (virtualenv), MLflow
+mengalihkan base image ke ubuntu:20.04 yang meng-install python3.9 lalu
+mengunduh get-pip.py versi umum; skrip tersebut kini menolak Python < 3.10
+sehingga build gagal. Dengan local, base image tetap python:3.12.7-slim.
 
 lalu di-tag dan di-push:
 
