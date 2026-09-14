@@ -15,8 +15,8 @@ flavors:
     sklearn_version: 1.6.0
 mlflow_version: 2.19.0
 model_size_bytes: 17951624
-model_uuid: ac5b5fafd8a74eeaa775c5b9e3282e53
-run_id: 467ad3020d054bbf9f922d2428822cf5
+model_uuid: 4cde35d641d24bb9ad71ea541da3d4bd
+run_id: b648fedd14174a3b948f94e3576c4f1f
 saved_input_example_info:
   artifact_path: input_example.json
   pandas_orient: split
@@ -47,4 +47,4 @@ signature:
     "long", "name": "tenure_group_5_thn_plus", "required": true}]'
   outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "int64", "shape": [-1]}}]'
   params: null
-utc_time_created: '2026-09-07 05:38:53.117018'
+utc_time_created: '2026-09-14 05:44:19.313679'
